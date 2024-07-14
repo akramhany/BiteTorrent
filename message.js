@@ -2,7 +2,7 @@ import buffer from "buffer";
 
 const Buffer = buffer.Buffer;
 
-export default class Message {
+export default class MessageBuilder {
   //<pstrlen><pstr><reserved><info_hash><peer_id>
   buildHandShake(torrent) {
     const buf = Buffer.alloc(68);
