@@ -2,156 +2,79 @@ import dgram from "dgram";
 import bencode from "bencode";
 import fs from 'fs/promises';
 import { randomBytes, createHash } from "crypto";
+import TrackerClient from "./TrackerClient.js";
 
 
-
-const messageType = {
-    connect: 0,
-    announce: 1
-};
 
 
 class Client
 {
     constructor()
     {
-        this.connectionId = null;
         this.torrent = null;
-        this.port = 6880;
-        this.client = dgram.createSocket("udp4");
-        this.client.bind(this.port);
-        this.connnected = false;
-        this.announced = false;
+        this.announceList = null;
+        this.port = 6881;
+        this.tClient = null;
         this.beer_id = this.genId();
-        this.client.on('message', this.onMessage.bind(this));
-        this.client.on('error', console.error);
-    }
-
-    onMessage(msg, rinfo)
-    {
-        if(this.responseType(msg) === messageType.connect) {
-            const res = this.parseResponse(msg);
-            this.connectionId = res.connectionId;
-            this.transactionId = res.transactionId;
-            this.connnected = true;
-        }
-        else if(this.responseType(msg) === messageType.announce) {
-            const res = this.parseAnnounceResponse(msg);
-            this.peers = res.peers;
-            this.announced = true;
-        }
+        this.peers = null;
     }
 
     async init(torrentFile)
     {
         const data = await fs.readFile(torrentFile);
         this.torrent = bencode.decode(data, "utf8");
-        const url = new URL(this.torrent['announce-list'][2]);
-        this.port = url.port;
-        this.hostname = url.hostname;
         this.info_hash = this.getInfoHash();
+        this.announceList = this.torrent['announce-list'];
     }
 
-    async tryConnect()
+    async trackerConnect()
     {
-        await this.sendAsync(this.constructConnectMessage(), this.port, this.hostname);
-    }
+        for(let i = 0; i < this.announceList.length; i++)
+        {
+            const url = new URL(this.announceList[i]);
 
-    async tryAnnounce(){
-        await this.sendAsync(this.constructAnnounceMessage(), this.port, this.hostname);
-    }
+            if(!url.port || !url.hostname)
+                continue;
 
-    constructConnectMessage(){
-        const buffer = Buffer.alloc(16);
+            this.tClient = new TrackerClient(this.port, url.hostname, url.port, this.peer_id, this.info_hash);
 
-        buffer.writeBigUInt64BE(0x41727101980n, 0);
-        buffer.writeUInt32BE(messageType.connect, 8);
-        randomBytes(4).copy(buffer, 12);
-    
-        return buffer;
-    }
+            console.log(`trying to connect to ${url.hostname} on ${url.port}`);
+            await this.tClient.tryConnect();
 
-    constructAnnounceMessage()
-    {
-        const buffer = Buffer.alloc(98);
+            await waitSecs(10);
 
-        buffer.writeBigUInt64BE(this.connectionId, 0); //connection id
-        buffer.writeUInt32BE(messageType.announce, 8); //action
-        randomBytes(4).copy(buffer, 12); //transaction id
-        this.info_hash.copy(buffer, 16); //info hash
-        this.beer_id.copy(buffer, 36); //peer id
-        buffer.writeBigUint64BE(0n, 56); //downloaded
-        buffer.writeBigUint64BE(BigInt(this.getLeft()), 64); //left
-        buffer.writeBigUint64BE(0n, 72); //uploaded
-        buffer.writeUInt32BE(0, 80); //event
-        buffer.writeUInt32BE(0, 84); //ip address
-        buffer.writeUInt32BE(0, 88); //key
-        buffer.writeInt32BE(-1, 92); //num want
-        buffer.writeUInt16BE(this.port, 96); //PORT
+            if(!this.tClient.connected)
+            {
+                await this.tClient.close();
+                this.tClient = null;
+                continue;
+            }
 
-        return buffer;
-    }
+            await this.tClient.tryAnnounce();
 
-    responseType(response) {
-        return response.readUInt32BE(0);
+            await waitSecs(10);
+
+            if(!this.tClient.announced)
+            {
+                await this.tClient.close();
+                this.tClient = null;
+                continue;
+            }
+
+            break;
+        }
+
+        if(!this.tClient){
+            throw Error("Couldn't Connect To a Tracker");
+        }
+
+        this.peers = this.tClient.peers;
     }
 
     getLeft(){
         return this.torrent.info.files.map((file) => {
             return file.length;
         }).reduce((a, b) => a + b);
-    }
-
-    parseAnnounceResponse(response) {
-
-        const action = response.readUInt32BE(0);
-        const transactionId = response.readUInt32BE(4);
-        const interval = response.readUInt32BE(8);
-        const leechers = response.readUInt32BE(12);
-        const seeders = response.readUInt32BE(16);
-        const peers = [];
-
-        for(let i = 20; i < response.length; i += 6)
-        {
-            let ip = response.readUInt32BE(i);
-            let port = response.readUInt16BE(i + 4);
-
-            peers.push({ip, port});
-        }
-
-        return {
-            action,
-            transactionId,
-            interval,
-            leechers,
-            seeders,
-            peers
-        };
-    }
-
-    parseResponse(response) {
-        const action = response.readUInt32BE(0);
-        const transactionId = response.readUInt32BE(4);
-        const connectionId = response.readBigUInt64BE(8);
-    
-        return {
-            action,
-            transactionId,
-            connectionId
-        };
-    }
-
-    async sendAsync(msg, port, hostname) {
-        return new Promise((resolve, reject) => {
-            this.client.send(msg, port, hostname, (err) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    console.log("Message Sent Successfully");
-                    resolve();
-                }
-            });
-        });
     }
 
     genId(){
@@ -176,27 +99,11 @@ async function main(){
 
     const client = new Client();
 
-    await client.init("./resources/cosmos-laundromat.torrent");
+    await client.init('./resources/big-buck-bunny.torrent');
 
-    await client.tryConnect();
+    await client.trackerConnect();
 
-    while(!client.connnected)
-    {
-        await waitSecs(0.1);
-    }
-
-    console.log("Connected Successfully");
-
-    await client.tryAnnounce();
-
-    while(!client.announced)
-    {
-        await waitSecs(0.1)
-    }
-
-    console.log(client.beer_id);
     console.log(client.peers);
-
 
 
 }
