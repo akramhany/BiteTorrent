@@ -4,7 +4,7 @@ const Buffer = buffer.Buffer;
 
 export default class MessageBuilder {
   //<pstrlen><pstr><reserved><info_hash><peer_id>
-  buildHandShake(torrent) {
+  static buildHandShake(torrent) {
     const buf = Buffer.alloc(68);
 
     const protocol = "BitTorrent protocol";
@@ -22,13 +22,13 @@ export default class MessageBuilder {
     //TODO: Write the info_hash and the peer_id (each is 20 bytes)
   }
 
-  buildKeepAlive() {
+  static buildKeepAlive() {
     //Contains no message id, and no payload
     return Buffer.alloc(4);
   }
 
   //<len=0001><id=0><no payload>
-  buildChoke() {
+  static buildChoke() {
     const buf = Buffer.alloc(5);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -41,7 +41,7 @@ export default class MessageBuilder {
   }
 
   //<len=0001><id=1><no payload>
-  buildUnchoke() {
+  static buildUnchoke() {
     const buf = Buffer.alloc(5);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -54,7 +54,7 @@ export default class MessageBuilder {
   }
 
   //<len=0001><id=2><no payload>
-  buildInterested() {
+  static buildInterested() {
     const buf = Buffer.alloc(5);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -67,7 +67,7 @@ export default class MessageBuilder {
   }
 
   //<len=0001><id=3><no payload>
-  buildNotInterested() {
+  static buildNotInterested() {
     const buf = Buffer.alloc(5);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -80,7 +80,7 @@ export default class MessageBuilder {
   }
 
   //<len=0005><id=4><payload=piece_index>
-  buildHave(payload) {
+  static buildHave(payload) {
     const buf = Buffer.alloc(9);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -96,12 +96,12 @@ export default class MessageBuilder {
   }
 
   //<len=0001+X><id=5><payload=bitfield>
-  buildBitfield() {
+  static buildBitfield() {
     //TODO
   }
 
   //<len=00013><id=6><index><begin><length>
-  buildRequest(payload) {
+  static buildRequest(payload) {
     const buf = Buffer.alloc(17);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -123,7 +123,7 @@ export default class MessageBuilder {
   }
 
   //<len=0009+X><id=7><index><begin><block>
-  buildPiece(payload) {
+  static buildPiece(payload) {
     const buf = Buffer.alloc(payload.block.length + 13);
 
     //length of the message
@@ -145,7 +145,7 @@ export default class MessageBuilder {
   }
 
   //<len=00013><id=8><index><begin><length>
-  buildCancle(payload) {
+  static buildCancle(payload) {
     const buf = Buffer.alloc(17);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
@@ -166,7 +166,7 @@ export default class MessageBuilder {
     return buf;
   }
 
-  buildPort(payload) {
+  static buildPort(payload) {
     const buf = Buffer.alloc(7);
 
     //4 bytes indicating the length of the message (excluding these 4 bytes)
