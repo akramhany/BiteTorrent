@@ -4,7 +4,7 @@ const Buffer = buffer.Buffer;
 
 export default class MessageBuilder {
   //<pstrlen><pstr><reserved><info_hash><peer_id>
-  static buildHandShake(torrent) {
+  static buildHandShake(info_hash, peer_id) {
     const buf = Buffer.alloc(68);
 
     const protocol = "BitTorrent protocol";
@@ -16,10 +16,13 @@ export default class MessageBuilder {
     buf.write(protocol, 1);
 
     //reserved 8 bytes
-    buf.writeUInt32BE(0, 20);
-    buf.writeUInt32BE(0, 24);
+    buf.writeBigInt64BE(0, 20);
 
-    //TODO: Write the info_hash and the peer_id (each is 20 bytes)
+    //info_hash
+    buf.write(info_hash, 28);
+
+    //beer_id
+    buf.write(peer_id, 48);
   }
 
   static buildKeepAlive() {

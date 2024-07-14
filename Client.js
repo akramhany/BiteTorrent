@@ -21,6 +21,8 @@ class Client
         this.client = dgram.createSocket("udp4");
         this.client.bind(this.port);
         this.connnected = false;
+        this.announced = false;
+        this.beer_id = this.genId();
         this.client.on('message', this.onMessage.bind(this));
         this.client.on('error', console.error);
     }
@@ -35,7 +37,8 @@ class Client
         }
         else if(this.responseType(msg) === messageType.announce) {
             const res = this.parseAnnounceResponse(msg);
-            console.log(res);
+            this.peers = res.peers;
+            this.announced = true;
         }
     }
 
@@ -46,6 +49,7 @@ class Client
         const url = new URL(this.torrent['announce-list'][2]);
         this.port = url.port;
         this.hostname = url.hostname;
+        this.info_hash = this.getInfoHash();
     }
 
     async tryConnect()
@@ -74,8 +78,8 @@ class Client
         buffer.writeBigUInt64BE(this.connectionId, 0); //connection id
         buffer.writeUInt32BE(messageType.announce, 8); //action
         randomBytes(4).copy(buffer, 12); //transaction id
-        this.getInfoHash().copy(buffer, 16); //info hash
-        this.genId().copy(buffer, 36); //peer id
+        this.info_hash.copy(buffer, 16); //info hash
+        this.beer_id.copy(buffer, 36); //peer id
         buffer.writeBigUint64BE(0n, 56); //downloaded
         buffer.writeBigUint64BE(BigInt(this.getLeft()), 64); //left
         buffer.writeBigUint64BE(0n, 72); //uploaded
@@ -162,6 +166,12 @@ class Client
 };
 
 
+function waitSecs(n){
+    return new Promise((resolve) => {
+        setTimeout(() => resolve(), n * 1000);
+    })
+}
+
 async function main(){
 
     const client = new Client();
@@ -172,12 +182,21 @@ async function main(){
 
     while(!client.connnected)
     {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+        await waitSecs(0.1);
     }
 
     console.log("Connected Successfully");
 
     await client.tryAnnounce();
+
+    while(!client.announced)
+    {
+        await waitSecs(0.1)
+    }
+
+    console.log(client.beer_id);
+    console.log(client.peers);
+
 
 
 }
