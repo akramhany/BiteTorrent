@@ -1,3 +1,5 @@
+import MessageBuilder from "./message_builder.js";
+
 export default class MessageUtils {
   static assembleWholeMsg(socket, callback) {
     let savedBuf = Buffer.alloc(0);
@@ -43,5 +45,17 @@ export default class MessageUtils {
       id: id,
       payload: payload,
     };
+  }
+
+  static msgHandler(msg, socket) {
+    if (MessageUtils.isHandshake(msg))
+      socket.write(MessageBuilder.buildInterested());
+  }
+
+  static isHandshake(msg) {
+    return (
+      msg.length === msg.readUInt8(0) + 49 &&
+      msg.toString("utf8", 1) === "BitTorrent protocol"
+    );
   }
 }
